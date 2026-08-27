@@ -1,0 +1,19 @@
+[Unit]
+Description=5G network quality monitor (ping + speedtest)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/.venv/bin/python -m nettest.main --config __REPO_DIR__/config.json
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

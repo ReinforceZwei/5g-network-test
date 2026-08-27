@@ -1,0 +1,19 @@
+{
+  "targets": ["1.1.1.1", "8.8.8.8", "223.5.5.5", "168.95.1.1"],
+  "auto_add_gateway": true,
+  "ping_interval_sec": 5,
+  "ping_timeout_sec": 2,
+  "speedtest_interval_min": 60,
+  "speedtest_timeout_sec": 180,
+  "speedtest_ookla_bin": "speedtest",
+  "ip_check_interval_min": 15,
+  "log_dir": "logs",
+  "report_dir": "reports",
+  "retention_days": 14,
+  "thresholds": {
+    "loss_pct": 1.0,
+    "avg_ping_ms": 60.0,
+    "min_download_mbps": 20.0,
+    "min_upload_mbps": 5.0
+  }
+}
