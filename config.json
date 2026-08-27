@@ -10,6 +10,9 @@
   "log_dir": "logs",
   "report_dir": "reports",
   "retention_days": 14,
+  "discord_webhook_url": "",
+  "notify_daily": true,
+  "notify_final": true,
   "thresholds": {
     "loss_pct": 1.0,
     "avg_ping_ms": 60.0,

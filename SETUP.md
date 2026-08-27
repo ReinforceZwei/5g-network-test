@@ -162,6 +162,27 @@ mechanical **Assessment vs thresholds** section with an overall verdict
 (ACCEPTABLE / NOT ACCEPTABLE). `report_all-days.png` shows RTT time series,
 download/upload over time, and 10-minute loss buckets.
 
+### Discord notifications (optional)
+
+Have the daily report delivered to a Discord channel automatically:
+
+```bash
+cd ~/5g-network-test
+echo '{"discord_webhook_url": "https://discord.com/api/webhooks/..."}' > config.local.json
+sudo systemctl restart 5g-network-test
+.venv/bin/python -m nettest.main --test-webhook     # one test message
+```
+
+- `config.local.json` is **gitignored** — the webhook URL never enters the
+  repo, and `git pull` won't clobber it. (Alternative: `DISCORD_WEBHOOK_URL`
+  env var in the service unit.)
+- What you get: one Discord message per event — **daily report** (at midnight),
+  **catch-up** for days the Pi was off/restarted across midnight, and a
+  **final report** when the service shuts down gracefully. Each message
+  contains a compact summary (verdict + assessment + speed-test min/avg/max +
+  coverage) with the full `.md` report and the chart `.png` attached.
+- Toggle with `notify_daily` / `notify_final` in config; empty URL = off.
+
 ## 7. The 7-day decision checklist
 
 Inside the free-cancellation window, check the combined report for:

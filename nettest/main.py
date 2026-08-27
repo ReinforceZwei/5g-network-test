@@ -20,6 +20,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import Config
+from .notify import NotifyError, send_report, send_webhook
 from .ping import detect_default_gateway, probe_once
 from .report import generate_report
 from .speedtest import SpeedtestError, run_speedtest
@@ -182,6 +183,14 @@ class Monitor:
         except OSError as exc:
             log.warning("could not write status.json: %s", exc)
 
+    def _notify(self, report_path: Path, header: str) -> None:
+        """Send a report to the Discord webhook (failure is non-fatal)."""
+        try:
+            send_report(self.cfg, report_path, header)
+            self.event("info", f"discord report sent: {header}")
+        except NotifyError as exc:
+            self.event("error", f"discord notify failed: {exc}")
+
     def _rollover_if_needed(self, last_day: str) -> str:
         day = _day_str()
         if day == last_day:
@@ -190,13 +199,36 @@ class Monitor:
         self.speed_csv.flush()
         self.event_csv.flush()
         try:
-            generate_report(self.cfg, date=last_day)
+            rp = generate_report(self.cfg, date=last_day)
             log.info("daily report generated for %s", last_day)
+            if self.cfg.notify_daily:
+                self._notify(rp, f"Daily report {last_day}")
         except Exception as exc:  # report must never kill the monitor
             log.warning("daily report failed: %s", exc)
         for prefix in ("ping", "speedtest", "events"):
             cleanup_old(self.cfg.log_dir, prefix, self.cfg.retention_days)
         return day
+
+    def _catch_up_reports(self) -> None:
+        """Generate (+ notify) reports for log days that never got one —
+        covers the Pi being off or restarting across midnight."""
+        try:
+            have = {p.stem.split("_")[-1] for p in self.cfg.report_dir.glob("report_*.md")}
+            dates = sorted({p.stem.split("_")[-1] for p in self.cfg.log_dir.glob("ping_*.csv")})
+        except OSError as exc:
+            log.warning("catch-up scan failed: %s", exc)
+            return
+        today = _day_str()
+        for d in dates:
+            if d == today or d in have:
+                continue
+            try:
+                rp = generate_report(self.cfg, date=d)
+                log.info("catch-up report generated for %s", d)
+                if self.cfg.notify_daily:
+                    self._notify(rp, f"Daily report {d} (catch-up)")
+            except Exception as exc:
+                log.warning("catch-up report failed for %s: %s", d, exc)
 
     # ------------------------------------------------------------ lifecycle
 
@@ -218,6 +250,7 @@ class Monitor:
             f"ping_interval={cfg.ping_interval_sec:g}s "
             f"speedtest_interval={cfg.speedtest_interval_min}min",
         )
+        self._catch_up_reports()
 
         day = _day_str()
         now = time.monotonic()
@@ -251,8 +284,10 @@ class Monitor:
         self.speed_csv.flush()
         self.event_csv.flush()
         try:
-            generate_report(self.cfg, date=day)
+            rp = generate_report(self.cfg, date=day)
             log.info("final report generated for %s", day)
+            if self.cfg.notify_final:
+                self._notify(rp, f"Final report {day}")
         except Exception as exc:
             log.warning("final report failed: %s", exc)
         self.ping_csv.close()
@@ -310,6 +345,28 @@ def _normalize_date(s: str | None) -> str | None:
         raise SystemExit(f"invalid date '{s}' — use YYYY-MM-DD")
 
 
+def run_test_webhook(cfg: Config) -> int:
+    """Send a test message (and the latest report, if one exists) to the webhook."""
+    url = cfg.discord_webhook_url or ""
+    if not url:
+        print(
+            "no discord webhook configured — set discord_webhook_url in "
+            "config.json / config.local.json or export DISCORD_WEBHOOK_URL"
+        )
+        return 1
+    try:
+        latest = cfg.report_dir / "latest.md"
+        if latest.exists():
+            send_report(cfg, latest, "Webhook test (latest report)")
+        else:
+            send_webhook(url, f"✅ Webhook test from 5G network monitor (nettest {__version__})")
+        print("webhook test sent OK")
+        return 0
+    except NotifyError as exc:
+        print(f"webhook test FAILED: {exc}")
+        return 1
+
+
 def _parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="nettest",
@@ -324,6 +381,10 @@ def _parse_args(argv):
         "--report", nargs="?", const="", default=None, metavar="YYYY-MM-DD",
         help="generate a report and exit. Without a date: all available days "
              "combined (use this after the 7-day trial).",
+    )
+    parser.add_argument(
+        "--test-webhook", action="store_true",
+        help="send a test message to the configured Discord webhook and exit",
     )
     parser.add_argument("--version", action="version", version=f"nettest {__version__}")
     return parser.parse_args(argv)
@@ -340,6 +401,8 @@ def main(argv=None) -> int:
     if args.once:
         run_once(cfg)
         return 0
+    if args.test_webhook:
+        return run_test_webhook(cfg)
     if args.report is not None:
         date = _normalize_date(args.report)
         path = generate_report(cfg, date=date)

@@ -1,12 +1,16 @@
 """Configuration loading.
 
 Configuration lives in a JSON file (default: config.json next to the package).
+A sibling `config.local.json` (gitignored — use it for secrets like the
+Discord webhook URL) is merged on top, and the DISCORD_WEBHOOK_URL environment
+variable overrides discord_webhook_url (handy for systemd Environment=).
 Relative log_dir / report_dir paths are resolved against the config file's
 directory, so the config can be moved around with the repo.
 """
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,6 +35,11 @@ DEFAULTS: dict = {
     "report_dir": "reports",
     # Delete rotated CSV files older than this many days.
     "retention_days": 14,
+    # Discord webhook notifications. Leave empty to disable.
+    # Overridable via config.local.json or the DISCORD_WEBHOOK_URL env var.
+    "discord_webhook_url": "",
+    "notify_daily": True,
+    "notify_final": True,
     # Thresholds used by the report's assessment section.
     "thresholds": {
         "loss_pct": 1.0,
@@ -44,7 +53,7 @@ _FIELDS = {
     "targets", "auto_add_gateway", "ping_interval_sec", "ping_timeout_sec",
     "speedtest_interval_min", "speedtest_timeout_sec", "speedtest_ookla_bin",
     "ip_check_interval_min", "log_dir", "report_dir", "retention_days",
-    "thresholds",
+    "discord_webhook_url", "notify_daily", "notify_final", "thresholds",
 }
 
 
@@ -62,6 +71,9 @@ class Config:
     log_dir: Path = field(default_factory=lambda: Path("logs"))
     report_dir: Path = field(default_factory=lambda: Path("reports"))
     retention_days: int = 14
+    discord_webhook_url: str = ""
+    notify_daily: bool = True
+    notify_final: bool = True
     thresholds: dict = field(default_factory=dict)
     _effective: list | None = field(default=None, repr=False)
 
@@ -71,6 +83,12 @@ class Config:
         raw: dict = {}
         if path.exists():
             raw = json.loads(path.read_text())
+        local = path.with_name(path.stem + ".local.json")  # e.g. config.local.json
+        if local.exists():
+            raw = {**raw, **json.loads(local.read_text())}
+        env_url = os.environ.get("DISCORD_WEBHOOK_URL")
+        if env_url:
+            raw["discord_webhook_url"] = env_url
         merged = {**DEFAULTS, **raw}
         root = path.resolve().parent
         kwargs = {k: v for k, v in merged.items() if k in _FIELDS}

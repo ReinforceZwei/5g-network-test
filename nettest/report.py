@@ -204,8 +204,8 @@ def _make_chart(ping_rows: list[dict], speed_rows: list[dict], out_png: Path) ->
             xs = [p[0] for p in pts]
             ax.plot(xs, [p[1] for p in pts], marker="o", ms=4, label="download")
             ax.plot(xs, [p[2] for p in pts], marker="s", ms=4, label="upload")
+            ax.legend(fontsize=8)
         ax.set_ylabel("Mbps")
-        ax.legend(fontsize=8)
         ax.grid(alpha=0.3)
 
         # 3) Loss % per 10-minute bucket per target

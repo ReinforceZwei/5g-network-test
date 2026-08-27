@@ -16,6 +16,10 @@ window — whether the connection is good enough to keep.
   Runs in a background thread, so ping sampling never pauses.
 - **External IP tracking** — checks the public IP every 15 min and logs every
   change (typical for 5G CGNAT / IP rebinding).
+- **Discord notifications** — every daily report (plus a final report on
+  shutdown) is pushed to a Discord webhook as a summary message with the full
+  `.md` report and chart `.png` attached. Missing days are caught up
+  automatically after restarts.
 - **Reports** — markdown summary per day (auto-generated at midnight) and a
   combined report over all days (the 7-day verdict). Optional matplotlib chart
   (PNG) with RTT time series, speed history and 10-minute loss buckets.
@@ -72,7 +76,29 @@ troubleshooting): **[SETUP.md](SETUP.md)**.
 | `ip_check_interval_min` | `15` | public-IP change check cadence |
 | `log_dir` / `report_dir` | `logs/` / `reports/` | relative to the config file |
 | `retention_days` | `14` | CSV auto-delete age |
+| `discord_webhook_url` | `""` | Discord webhook URL (empty = notifications off; put it in `config.local.json`, see below) |
+| `notify_daily` / `notify_final` | `true` / `true` | send daily / final-shutdown reports to the webhook |
 | `thresholds` | loss 1%, ping 60 ms, dl 20 Mbps, ul 5 Mbps | report verdict thresholds |
+
+## Discord notifications
+
+Set your webhook URL (keep it out of git):
+
+```bash
+cd ~/5g-network-test
+echo '{"discord_webhook_url": "https://discord.com/api/webhooks/..."}' > config.local.json
+sudo systemctl restart 5g-network-test
+./.venv/bin/python -m nettest.main --test-webhook   # send a test message
+```
+
+`config.local.json` is gitignored, so `git pull` never conflicts and the URL
+never lands in the repo. Alternative: export `DISCORD_WEBHOOK_URL` in the
+service environment instead.
+
+Each notification = one Discord message: a compact summary (verdict,
+assessment vs thresholds, speed-test min/avg/max, coverage) plus the full
+report `.md` and chart `.png` as attachments. Sent on: daily midnight report,
+catch-up for days the Pi was off, and the final report on graceful shutdown.
 
 ## Reading the verdict
 
