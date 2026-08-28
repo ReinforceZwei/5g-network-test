@@ -35,6 +35,10 @@ DEFAULTS: dict = {
     "report_dir": "reports",
     # Delete rotated CSV files older than this many days.
     "retention_days": 14,
+    # How often buffered CSV rows are flushed to disk (seconds). Keeps
+    # low-frequency rows (speedtest ~1/h, events a few/day) durable within the
+    # interval instead of waiting for the row-count buffer to fill.
+    "flush_interval_sec": 60,
     # Discord webhook notifications. Leave empty to disable.
     # Overridable via config.local.json or the DISCORD_WEBHOOK_URL env var.
     "discord_webhook_url": "",
@@ -53,7 +57,8 @@ _FIELDS = {
     "targets", "auto_add_gateway", "ping_interval_sec", "ping_timeout_sec",
     "speedtest_interval_min", "speedtest_timeout_sec", "speedtest_ookla_bin",
     "ip_check_interval_min", "log_dir", "report_dir", "retention_days",
-    "discord_webhook_url", "notify_daily", "notify_final", "thresholds",
+    "flush_interval_sec", "discord_webhook_url", "notify_daily", "notify_final",
+    "thresholds",
 }
 
 
@@ -71,6 +76,7 @@ class Config:
     log_dir: Path = field(default_factory=lambda: Path("logs"))
     report_dir: Path = field(default_factory=lambda: Path("reports"))
     retention_days: int = 14
+    flush_interval_sec: int = 60
     discord_webhook_url: str = ""
     notify_daily: bool = True
     notify_final: bool = True

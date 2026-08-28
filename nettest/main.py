@@ -258,6 +258,7 @@ class Monitor:
         next_speedtest = now + 15  # first speed test shortly after start (baseline)
         next_ipcheck = now + 10
         next_status = now + 5
+        next_flush = now + cfg.flush_interval_sec
         try:
             while not self.stop_event.is_set():
                 now = time.monotonic()
@@ -273,6 +274,14 @@ class Monitor:
                 if now >= next_status:
                     self._write_status()
                     next_status = now + 30
+                if now >= next_flush:
+                    # Low-frequency writers (speedtest ~1/h, events) never fill
+                    # the row-count buffer; flush on a timer so their rows are
+                    # durable on disk even if the Pi loses power mid-day.
+                    self.ping_csv.flush()
+                    self.speed_csv.flush()
+                    self.event_csv.flush()
+                    next_flush = now + cfg.flush_interval_sec
                 day = self._rollover_if_needed(day)
                 self.stop_event.wait(0.5)
         finally:
