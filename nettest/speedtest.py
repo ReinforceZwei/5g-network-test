@@ -82,8 +82,10 @@ def _run_ookla(bin_path: str, timeout: int) -> dict:
         "external_ip": iface.get("externalIp", ""),
         "ping_ms": ping.get("latency"),
         "jitter_ms": ping.get("jitter"),
-        "download_mbps": (dl.get("bandwidth") or 0) / 1e6,
-        "upload_mbps": (ul.get("bandwidth") or 0) / 1e6,
+        # Ookla CLI JSON reports bandwidth in BYTES per second (not bits) —
+        # convert to Mbps with *8/1e6. (speedtest-cli reports bits/s, see _run_cli.)
+        "download_mbps": (dl.get("bandwidth") or 0) * 8 / 1e6,
+        "upload_mbps": (ul.get("bandwidth") or 0) * 8 / 1e6,
         "packet_loss_pct": data.get("packetLoss"),
     }
 
