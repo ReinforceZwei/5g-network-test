@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from .config import Config
 from .ping import detect_default_gateway
+
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------- loading
@@ -194,11 +197,17 @@ def _make_chart(ping_rows: list[dict], speed_rows: list[dict], out_png: Path) ->
 
         # 2) Download / upload over time
         ax = axes[1]
-        pts = [
-            (dt, float(r["download_mbps"]), float(r["upload_mbps"]))
-            for r in speed_rows
-            if (dt := _parse_ts(r.get("ts", ""))) and r.get("download_mbps") not in (None, "")
-        ]
+        pts = []
+        for r in speed_rows:
+            dt = _parse_ts(r.get("ts", ""))
+            if dt is None:
+                continue
+            try:
+                dl = float(r["download_mbps"])
+                ul = float(r["upload_mbps"])
+            except (ValueError, TypeError, KeyError):
+                continue  # tolerate bad/legacy rows instead of killing the chart
+            pts.append((dt, dl, ul))
         if pts:
             pts.sort(key=lambda x: x[0])
             xs = [p[0] for p in pts]
@@ -413,4 +422,6 @@ def generate_report(cfg: Config, date: str | None = None, out_dir: Path | None =
     png = out_dir / f"report_{label}.png"
     if _make_chart(ping_rows, speed_rows, png):
         (out_dir / "latest.png").write_bytes(png.read_bytes())
+    else:
+        log.warning("chart generation failed for %s (md report still written)", label)
     return report_path
